@@ -1051,7 +1051,7 @@ MAPS.observatory=(()=>{
  rows[25][28]='D'; /* 梯子(18,24)から右へ10マス・下壁 */
  OBS_ITEMS.forEach(it=>{for(let yy=it.y;yy<it.y+it.h;yy++)for(let xx=it.x;xx<it.x+it.w;xx++)rows[yy][xx]='#'});
  rows[21][18]='i'; // 1冊目の本
- rows[16][22]='y'; // 2冊目の本：1冊目から上5・右4
+ /* 「時計塔の針」は書斎の古い書き物机へ移動 */
  return rows.map(r=>r.join(''));
 })();
 
@@ -1189,13 +1189,12 @@ function loadMap(n){
  }
  if(cur==='study')studyInit();if(cur==='library')libraryInit();
 }
-function init(room,sx,sy){
+function init(){
  try{libSetMirror(false)}catch(e){}LIB_SPEC=null;LIB_FALL=null;kidsEvtLock=false;state='play';dlg=null;fade=null;seenB=false;stairCount=0;equippedItem=null;tcorrEnding=false;
- const r=room||'a';
  unlockedDoors={};
- loadMap(r);
+ loadMap('a');
  inventory=['リボルバー'];
- const px=sx!==undefined?sx:(r==='a'?START.x:0),py=sy!==undefined?sy:(r==='a'?START.y:0);
+ const px=START.x,py=START.y;
  hero={gx:px,gy:py,sx:px,sy:py,x:px*T,y:py*T,dir:'d',moving:0};
 }
 const wall=(x,y)=>!grid[y]||grid[y][x]===undefined||[1,2,4,5,6,10,11,13,14,15,16,17,18,19,20,22,23,24,27,28,29,30,31,32,33,35,36,40,43,44,45,46,47,48,49,50,51,52,53,54,56,57,58,59,60,61,64,65,66].includes(grid[y][x])||(cur==='kids'&&grid[y][x]===62);
@@ -1247,8 +1246,8 @@ function tryMove(d, carryTime){
   if(now-(window._catBlockT||0)>1200&&!dlg){window._catBlockT=now;dlg=inventory.includes('粉ミルク')?{text:'「……これを渡しても、多分包装されてる\nプラスチックの方でじゃれるだけね」', t0:now, face:'1', queue:[{text:'「空のカップと水があれば\n多分、いけると思うけど……」',face:'1'}]}:{text:'「何かで懐かせないと」', t0:now, face:'1', queue:[{text:'「牛乳か何かを用意しないと、懐かなさそうね」',face:'1'},{text:'「キッチンを見てみればなにかあるかも」',face:'1'}]}}
   return false;
  }
- /* 4冊の本で開く鏡図書館1階右端の扉：開いた後は中へ1歩入れる */
- const libMdEndEnter=(cur==='library'&&libMir&&libLv===0&&unlockedDoors['libmd_open']&&!unlockedDoors['libmd_end_evt']&&nx===LIB_W-1&&(ny===12||ny===13));
+ /* 4冊の本をすべて差し込んで開いた、元の世界・図書館1階ハシゴ真下の扉：中へ1歩入れる */
+ const libMdEndEnter=(cur==='library'&&!libMir&&libLv===0&&libEndDoorOpen()&&!unlockedDoors['libmd_end_evt']&&(nx===LIBLAD.x||nx===LIBLAD.x+1)&&ny===LIBLAD.y+2);
  const lsr=libStepRules(nx,ny,d);
  if(!libMdEndEnter&&(lsr==='block'||(lsr!=='pass'&&wall(nx,ny)))){
   hero.sx = hero.gx; hero.sy = hero.gy;
@@ -1915,7 +1914,8 @@ function startMirrorWarp(a0){
  warp={t0:performance.now(),phase:0,a0:(typeof a0==='number'?a0:0)};gaze=null;seWarp();
 }
 /* ===== 時計塔の謎解き / ロープ ===== */
-const CLOCK_ANS={h:12,m:6};   /* 正解の時刻（古時計が止まっている時刻） */
+/* ゲーム内の時計はすべて通常と逆（反時計回り）に動かす。古時計は謎解き用の短針・長針を維持し、秒針を逆回転させる。 */
+const CLOCK_ANS={h:12,m:6};   /* 正解の時刻（古時計の短針・長針が示す基準時刻） */
 const clockTime=()=>({h:unlockedDoors.clockH!=null?unlockedDoors.clockH:12,m:unlockedDoors.clockM!=null?unlockedDoors.clockM:0});
 function drawGrandClock(px,py){
  g.fillStyle='rgba(0,0,0,.35)';g.fillRect(px+8,py+43,32,4);
@@ -1926,6 +1926,10 @@ function drawGrandClock(px,py){
  const hh=(CLOCK_ANS.h%12+CLOCK_ANS.m/60)/12*6.2832,mm=CLOCK_ANS.m/60*6.2832;
  g.strokeStyle='#1a1208';g.lineWidth=2;g.beginPath();g.moveTo(px+24,py+17);g.lineTo(px+24+Math.sin(hh)*5,py+17-Math.cos(hh)*5);g.stroke();
  g.lineWidth=1.3;g.beginPath();g.moveTo(px+24,py+17);g.lineTo(px+24+Math.sin(mm)*8,py+17-Math.cos(mm)*8);g.stroke();
+ /* 古時計も停止させない。秒針だけを反時計回りに動かし、12:06の手掛かりは維持する。 */
+ const ss=-(performance.now()/1000%60)/60*6.2832;
+ g.strokeStyle='#8a2a22';g.lineWidth=1;g.beginPath();g.moveTo(px+24,py+17);g.lineTo(px+24+Math.sin(ss)*9,py+17-Math.cos(ss)*9);g.stroke();
+ g.fillStyle='#8a2a22';g.beginPath();g.arc(px+24,py+17,1.5,0,7);g.fill();
  g.fillStyle='#1a1208';g.fillRect(px+17,py+29,14,12);g.fillStyle='#caa24a';g.fillRect(px+23,py+29,2,6);g.beginPath();g.arc(px+24,py+37,4,0,7);g.fill()}
 function drawConsole(px,py){
  g.fillStyle='rgba(0,0,0,.35)';g.fillRect(px+6,py+41,36,5);
@@ -2712,7 +2716,7 @@ function drawBalcony(){
  g.imageSmoothingEnabled=false;g.drawImage(BAL,0,0);drawBalDoorBal();
  const t=performance.now();
  BALSTARS.forEach(s=>{const a=.45+.45*Math.sin(t/420+s.ph);g.fillStyle='rgba(255,255,255,'+a+')';g.fillRect(s.x-s.s*1.6,s.y-1,s.s*3.2,2);g.fillRect(s.x-1,s.y-s.s*1.6,2,s.s*3.2)});
- const ct=clockTime(),hh=((ct.h%12)+ct.m/60)/12*6.2832,mm=ct.m/60*6.2832,cx=BCLK.x,cy=BCLK.y;
+ const ct=clockTime(),hh=-((ct.h%12)+ct.m/60)/12*6.2832,mm=-(ct.m/60)*6.2832,cx=BCLK.x,cy=BCLK.y;
  g.lineCap='round';g.strokeStyle='#1a1812';g.lineWidth=5;g.beginPath();g.moveTo(cx,cy);g.lineTo(cx+Math.sin(hh)*28,cy-Math.cos(hh)*28);g.stroke();
  g.lineWidth=3;g.beginPath();g.moveTo(cx,cy);g.lineTo(cx+Math.sin(mm)*42,cy-Math.cos(mm)*42);g.stroke();
  g.fillStyle='#caa24a';g.beginPath();g.arc(cx,cy,5,0,7);g.fill();g.lineCap='butt'}
@@ -2786,7 +2790,7 @@ function drawSpiralStructure(){
 function tcEll(x,y,rx,ry,c){g.fillStyle=c;g.beginPath();g.ellipse(x,y,rx,ry,0,0,7);g.fill()}
 /* 右窓・前半：時計塔（ローカル座標 0..48 x 0..336、2枚の窓にまたがる） */
 function drawTcTower(ct,t){
- const cx=24,hh=((ct.h%12)+ct.m/60)/12*6.2832,mm=ct.m/60*6.2832;
+ const cx=24,hh=-((ct.h%12)+ct.m/60)/12*6.2832,mm=-(ct.m/60)*6.2832;
  g.fillStyle='#0a0f24';g.fillRect(cx-13,58,26,300);
  g.fillStyle='#26335f';g.fillRect(cx-13,58,2,300);
  g.strokeStyle='rgba(70,85,140,0.3)';g.lineWidth=1;g.beginPath();
@@ -3214,7 +3218,7 @@ function drawTcScene(){
  g.fillStyle='rgba(44,54,100,.9)';g.beginPath();g.arc(mx,my,34,0,7);g.fill();
  g.fillStyle='#fffbe0';g.beginPath();g.arc(mx,my,34,-Math.PI/2,Math.PI/2,false);g.closePath();g.fill();
  g.drawImage(tcBG.cv,0,-TC_PAD);
- const ct=clockTime(),hh=((ct.h%12)+ct.m/60)/12*6.2832,mm=ct.m/60*6.2832,ccx=TX+TC_TW/2,ccy=190;
+ const ct=clockTime(),hh=-((ct.h%12)+ct.m/60)/12*6.2832,mm=-(ct.m/60)*6.2832,ccx=TX+TC_TW/2,ccy=190;
  g.strokeStyle='#1a1408';g.lineCap='round';
  g.lineWidth=5;g.beginPath();g.moveTo(ccx,ccy);g.lineTo(ccx+Math.sin(hh)*38,ccy-Math.cos(hh)*38);g.stroke();
  g.lineWidth=3.2;g.beginPath();g.moveTo(ccx,ccy);g.lineTo(ccx+Math.sin(mm)*58,ccy-Math.cos(mm)*58);g.stroke();
@@ -4126,7 +4130,7 @@ function obsExtraWall(c){
   for(const [a,b] of [[0,2],[1,4],[2,3],[3,4],[2,5],[4,6]])obsDots(c,x0+o[a][0],y0+o[a][1],x0+o[b][0],y0+o[b][1],'#6a74a8',4);
   o.forEach(([x,y],i)=>{R(i===0?'#ff9a6a':'#fff3b8',x0+x-1,y0+y-1,3,3)});
   R(P.b2,x0+w/2-4,y0+h-4,8,2);}
- /* --- 振り子式の壁掛け時計（針は止まったまま。振り子は動的に描く） --- */
+ /* --- 振り子式の壁掛け時計（針・振り子とも動的に描く） --- */
  {const cx=979;
   R('rgba(0,0,0,.30)',cx-14,28,34,88);
   R(P.w0,cx-17,22,34,92);R(P.w2,cx-15,24,30,88);R(P.w4,cx-15,24,30,2);
@@ -4188,6 +4192,12 @@ function obsAnimExtra(){
   const px=it.x*T,py=it.y*T,a=t/520;
   obsGear(g,px+18,py+27,7,8,a,P.b2,'#1a1408');
   obsGear(g,px+31,py+26,6,7,-a*8/7+.3,P.b3,'#1a1408');
+  /* 小型時計も反時計回り。静的に描かれた針を文字盤で消してから動的に重ねる */
+  const ccx=px+24,ccy=py+8,revMin=-(t/1000)*Math.PI/30,revHour=revMin/12;
+  obsDisc(g,ccx,ccy,5,'#ece4cc');
+  obsLine(g,ccx,ccy,ccx+Math.round(Math.sin(revHour)*3),ccy-Math.round(Math.cos(revHour)*3),2,()=>'#2a2418');
+  obsLine(g,ccx,ccy,ccx+Math.round(Math.sin(revMin)*4),ccy-Math.round(Math.cos(revMin)*4),2,()=>'#2a2418');
+  g.fillStyle=P.b0;g.fillRect(ccx-1,ccy-1,2,2);
   g.fillStyle='#ff6a3a';g.fillRect(px+24,py+20,2,2);
  });
  /* 壁掛け時計：針は反時計回り、振り子は通常どおり揺れる */
@@ -5238,20 +5248,49 @@ function studyLadderTick(now){
  if(hero.dir==='u'&&studyLv===0){studySetLevel(1);tryMove('u',0)}
  else if(hero.dir==='d'&&studyLv===1){studySetLevel(0);tryMove('d',0)}
 }
+const STUDY_CLOCK_HANDS_BOOK=[
+ '「時計塔の針」',
+ '「信じられない事が判明した」',
+ '「この世界が狂う理由が分かったのだ」',
+ '「いや、厳密には……」',
+ '「いや、今は詳しい原理は置いておこう\nとにかく、これを戻せば我々の世界は元に戻るはずだ」',
+ '「方法は、時計の秒針を取り外すのだ」',
+ '「秒針は段々と反対方向に進もうとしている」',
+ '「それこそ、今は前に進んでいるが……」',
+ '「……やがて針は反対に進み、世界は完全に狂うだろう」',
+ '「今でさえ、常軌を逸した現象が頻発しているのだ」',
+ '「何故雨が降っているのに月が出ているんだ！？」',
+ '「天候に詳しい知り合いが窓に向かって\n叫んでいたのを覚えている」',
+ '「秒針を取り外せば、この異空間のような世界から\n我々は切り離され」',
+ '「……元の屋敷に戻るはずだ」',
+ '「確証はない」'
+];
 function studyEvent(fx,fy){
- let L=null,p=0;
- if(!studyLv&&fx===17&&fy===9){
-  if(!unlockedDoors['cup_got'])return {text:'小さなサイドテーブル。',x:fx,y:fy,face:'none',queue:[
-   {text:'紅茶のカップが置かれている。\n中身はとうに飲み干されて、空っぽだ。',face:'none'},
-   {text:'空の「紅茶カップ」を手に入れた。',face:'none',onStart:()=>{unlockedDoors['cup_got']=true;inventory.push('空の紅茶カップ');seGet()}}]};
-  return {text:'小さなサイドテーブル。',x:fx,y:fy,face:'none',queue:[{text:'紅茶のカップは持ち出してしまった。',face:'none'}]};
+ /* 書斎で調べられる家具は「コート・地球儀・暖炉・机」の4種類だけ。
+    猫用ミルクに必要な紅茶カップは、進行不能を避けるため机から入手する。 */
+ for(const d of STUDY_DOORS){
+  if(!unlockedDoors['library_open']&&d.lv===studyLv&&fx===d.x&&fy>=d.y&&fy<d.y+d.h){
+   const f='none';return {text:d.t[0],x:fx,y:fy,face:f,queue:d.t.slice(1).map(t=>({text:t,face:f})),seLocked:true};
+  }
  }
- for(const d of STUDY_DOORS){if(!unlockedDoors['library_open']&&d.lv===studyLv&&fx===d.x&&fy>=d.y&&fy<d.y+d.h){const f='none';return {text:d.t[0],x:fx,y:fy,face:f,queue:d.t.slice(1).map(t=>({text:t,face:f})),seLocked:true}}}
- for(const it of (studyLv?STUDY_LI:STUDY_GI)){if(it.t&&fx>=it.x&&fx<it.x+it.w&&fy>=it.y&&fy<it.y+it.h){L=it.t;p=it.p;break}}
- if(!L&&studyLv&&((fy===6&&fx>=6&&fx<=17&&fx!==14)||(fx===5&&fy>=3&&fy<=5))){L=['手すりから身を乗り出すと、\n下の書斎が薄暗く見える。','暖炉の火だけが、ゆらゆらと揺れている。'];p=1}
- if(!L)return null;
- const face=p?'1':'none';
- return {text:L[0],x:fx,y:fy,face,queue:L.slice(1).map(t=>({text:t,face}))};
+ if(studyLv)return null;
+ const allowed=new Set(['coatrack','globe','fireplace','desk']);
+ for(const it of STUDY_GI){
+  if(!allowed.has(it.k)||!it.t||fx<it.x||fx>=it.x+it.w||fy<it.y||fy>=it.y+it.h)continue;
+  const face=it.p?'1':'none',q=it.t.slice(1).map(t=>({text:t,face}));
+  if(it.k==='desk'){
+   q.push({text:'机の上に、古びた本が一冊置かれている。',face:'none'});
+   for(const t of STUDY_CLOCK_HANDS_BOOK)q.push({text:t,face:'none'});
+   if(!unlockedDoors['cup_got']){
+    q.push({text:'机の端に、空になった紅茶カップが置かれている。',face:'none'});
+    q.push({text:'空の「紅茶カップ」を手に入れた。',face:'none',onStart:()=>{
+     unlockedDoors['cup_got']=true;if(!inventory.includes('空の紅茶カップ'))inventory.push('空の紅茶カップ');seGet();
+    }});
+   }
+  }
+  return {text:it.t[0],x:fx,y:fy,face,queue:q};
+ }
+ return null;
 }
 /* ---- 描画 ---- */
 const STUDY_SPR={
@@ -5828,7 +5867,13 @@ function libFallTick(now){
  if(!F.hit&&e>=900){F.hit=true;noiseSE(.9,.16,300);tone('sine',72,28,.5,.12);tone('square',120,46,.12,.05);noiseSE(.6,.06,1500,.08)}
  let n=0;for(const b of F.lay.books)if(!b.snd&&e>=b.tl+b.dur){b.snd=1;if(!n++&&_kh(b.x,b.y)>.5)noiseSE(.05,.035,2600)}
  if(e>=F.end){
-  unlockedDoors['libfall_'+F.sp]=true;LIB_FALL=null;libSpMirrorSync();
+  unlockedDoors['libfall_'+F.sp]=true;
+  /* 色付き本棚を1つでも倒すと、表世界1階のハシゴ真下に本を差し込む扉が出現する */
+  if(!unlockedDoors['libmd_holes']){
+   unlockedDoors['libmd_holes']=true;
+   noiseSE(.45,.06,520);tone('square',130,72,.22,.045);
+  }
+  LIB_FALL=null;libSpMirrorSync();
   if(libGrids&&libGrids[F.f])libFallGridAll(libGrids,libMir,F.sp);
   LIB_GC=null;LIB_LC=null;LIB_L2=null}}
 let LIB_SPEC=null; /* {black:[階(0..2),x,y],...} */
@@ -5858,7 +5903,7 @@ function libSpApply(sp){
 /* 位置は固定：黄色=1階(24,8) / 真っ黒=2階(4,5) / 銀色=2階(30,14) / 青(鏡)=3階(5,2) */
 const LIB_SP_FIXED={yellow:[0,24,8],black:[1,4,5],silver:[1,30,14],blue:[2,5,2]};
 /* =====================================================================
-   倒れた本棚から集める「特別な一冊」と、図書館（裏）右側の扉の嵌め込み穴
+   倒れた本棚から元の世界で集める「特別な一冊」と、本棚を倒すと出現する図書館（表）1階・ハシゴ真下の本差し込み扉
    黄色「月に満ち欠けについて」／灰色「夜闇に纏う貴方」／銀色「全世界時計図鑑」／青色「鏡の世界よ」（鏡文字）
    ※ 文中の ⟦ ⟧ で囲んだ部分は、ダイアログ上で鏡文字（左右反転）として描かれる
    ===================================================================== */
@@ -5881,9 +5926,9 @@ function libBookPos(sp){
  cand.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
  const c=cand[0]||[0,ux,uy+3];
  return LIB_BOOK_POS[sp]={f,cx:c[1],cy:c[2]}}
-/* 床に落ちている「特別な一冊」（裏の世界で、棚が倒れたあと・拾うまで。きらりと光る） */
+/* 床に落ちている「特別な一冊」（元の世界だけ。鏡世界で棚を倒してから、拾うまできらりと光る） */
 function libBookDraw(f,t){
- if(!libMir)return;
+ if(libMir)return;
  for(const k of LIB_SP_KINDS){
   if(!unlockedDoors['libfall_'+k]||unlockedDoors['libbook_'+k])continue;
   const P=libBookPos(k);if(P.f!==f)continue;
@@ -5898,8 +5943,9 @@ function libBookDraw(f,t){
   if(tw>.25){const a=Math.min(1,(tw-.25)*1.6),sx=x+w-6,sy=y-1;
    g.fillStyle='rgba(255,255,255,'+a.toFixed(2)+')';g.fillRect(sx,sy-6,2,14);g.fillRect(sx-6,sy,14,2);
    g.fillStyle='rgba(255,255,255,'+(a*.5).toFixed(2)+')';g.fillRect(sx-3,sy-3,8,8)}}}
-/* 調べる：特別な一冊を拾う（裏の世界のみ） */
+/* 調べる：特別な一冊を拾う（元の世界のみ） */
 function libBookEvent(fx,fy,rx,ry){
+ if(libMir)return null;
  for(const k of LIB_SP_KINDS){
   if(!unlockedDoors['libfall_'+k]||unlockedDoors['libbook_'+k])continue;
   const P=libBookPos(k);if(P.f!==libLv||P.cx!==fx||P.cy!==fy)continue;
@@ -5908,61 +5954,91 @@ function libBookEvent(fx,fy,rx,ry){
     if(!inventory.includes(B.name))inventory.push(B.name);unlockedDoors['libbook_'+k]=true;seGet()}}];
   if(last){
    q.push({text:'……これで、四冊が揃った。',face:'none'});
-   q.push({text:'どこかで、ガコンと何かが動く音がした。',face:'none',onStart:()=>{
-    unlockedDoors['libmd_holes']=true;noiseSE(.5,.08,500);tone('square',130,70,.25,.05)}});
-   q.push({text:'……右側の扉の方から聞こえた気がする。',face:'none'})}
+   q.push({text:'一階の扉に、この本を差し込めそうね。',face:'1'})}
   return {text:'散らばった本の中に、'+B.look+'一冊が混じっている。',x:rx,y:ry,face:'none',queue:q}}
  return null}
-/* 右側の扉（鏡の世界の図書館・1階）：4つの嵌め込み穴／開いた扉の描画 */
-let LIB_MD_OPEN=null;
+function libAllBooksCollected(){return LIB_SP_KINDS.every(k=>!!unlockedDoors['libbook_'+k])}
+function libMdVisible(){
+ return !!unlockedDoors['libmd_open']||!!unlockedDoors['libmd_holes']||LIB_SP_KINDS.some(k=>!!unlockedDoors['libfall_'+k]);
+}
+function libEndDoorOpen(){return !!unlockedDoors['libmd_open']||LIB_SP_KINDS.every(k=>!!unlockedDoors['libmd_slot_'+k])}
+/* 元の世界・図書館1階：色付き本棚を倒すと、1階ハシゴ真下に「本を差し込む扉」が出現する */
+let LIB_MD_OPEN=null,LIB_MD_CLOSED=null;
 function libMdOpenCv(){
  if(LIB_MD_OPEN)return LIB_MD_OPEN;
- const tc=document.createElement('canvas');tc.width=STUDY_W*T;tc.height=14*T;studyOpenDoor(tc.getContext('2d'),12*T);
- const cv2=document.createElement('canvas');cv2.width=T;cv2.height=2*T;const c=cv2.getContext('2d');c.imageSmoothingEnabled=false;
- c.translate(T,0);c.scale(-1,1);c.drawImage(tc,(STUDY_W-1)*T,12*T,T,2*T,0,0,T,2*T);
+ const cv2=document.createElement('canvas');cv2.width=2*T;cv2.height=2*T;const c=cv2.getContext('2d');c.imageSmoothingEnabled=false;
+ const R=(col,x,y,w,h)=>{c.fillStyle=col;c.fillRect(x,y,w,h)};
+ R('#090a0d',0,0,2*T,2*T);R('#18120e',4,2,2*T-8,2*T-2);
+ R('#654225',8,6,2*T-16,2*T-8);R('#2b1a10',13,10,2*T-26,2*T-16);
+ R('#9b6a38',9,5,2*T-18,4);R('#3b2515',9,T-2,2*T-18,4);
+ R('#9b6a38',8,5,5,2*T-10);R('#9b6a38',2*T-13,5,5,2*T-10);
+ /* 開いた扉の板を左右へ寄せる */
+ R('#4b2e19',10,13,12,2*T-22);R('#6a4224',12,15,8,2*T-26);
+ R('#4b2e19',2*T-22,13,12,2*T-22);R('#6a4224',2*T-20,15,8,2*T-26);
+ R('#050608',24,12,2*T-48,2*T-18);
+ R('#c9a04b',17,T+4,4,4);R('#c9a04b',2*T-21,T+4,4,4);
  return LIB_MD_OPEN=cv2}
-function libMdDraw(t){
- if(!libMir)return;
- const y0=12*T;g.imageSmoothingEnabled=false;
- if(unlockedDoors['libmd_open']){
-  g.fillStyle='#0b0e16';g.fillRect(0,y0,T,2*T);g.drawImage(libMdOpenCv(),0,y0);return}
- if(!unlockedDoors['libmd_holes'])return;
- const R=(col,x,y,w,h)=>{g.fillStyle=col;g.fillRect(x,y,w,h)};
- R('#2a2f37',10,y0+26,24,42);R('#6a707c',11,y0+27,22,1);
+function libMdClosedCv(){
+ if(LIB_MD_CLOSED)return LIB_MD_CLOSED;
+ const cv2=document.createElement('canvas');cv2.width=2*T;cv2.height=2*T;const c=cv2.getContext('2d');c.imageSmoothingEnabled=false;
+ const R=(col,x,y,w,h)=>{c.fillStyle=col;c.fillRect(x,y,w,h)};
+ R('#090a0d',0,0,2*T,2*T);R('#18120e',4,2,2*T-8,2*T-2);
+ R('#2b1a10',8,6,2*T-16,2*T-8);R('#654225',13,11,2*T-26,2*T-18);
+ R('#8b5a2f',16,14,2*T-32,2*T-24);R('#3c2414',T-2,14,4,2*T-24);
+ R('#a6753e',12,8,2*T-24,4);R('#a6753e',12,2*T-13,2*T-24,4);
+ /* 4冊分の差し込み口 */
  LIB_SP_KINDS.forEach((k,i)=>{
-  const sx=12+(i%2)*11,sy=y0+30+((i/2)|0)*18,w=9,h=14,on=unlockedDoors['libmd_slot_'+k];
-  R('#05060a',sx,sy,w,h);
-  if(on){const C=LIB_SP_COL[LIB_BOOKS[k].colr];R(C.a,sx+1,sy+1,w-2,h-2);R(C.hl,sx+1,sy+1,w-2,2);R(C.band,sx+1,sy+5,w-2,1)}
-  else{R('#8a8f9a',sx,sy,w,1);R('#8a8f9a',sx,sy,1,h)}})}
-/* 右側の扉を調べる */
+  const sx=27+(i%2)*26,sy=34+((i/2)|0)*30,w=17,h=23,on=!!unlockedDoors['libmd_slot_'+k];
+  R('#05060a',sx,sy,w,h);R('#c2a86a',sx-2,sy-2,w+4,2);R('#6d5635',sx-2,sy-2,2,h+4);
+  if(on){const C=LIB_SP_COL[LIB_BOOKS[k].colr];R(C.a,sx+2,sy+2,w-4,h-4);R(C.hl,sx+2,sy+2,w-4,3);R(C.band,sx+3,sy+9,w-6,2)}
+ });
+ return LIB_MD_CLOSED=cv2}
+function libMdDraw(t){
+ if(libMir||libLv!==0||!libMdVisible())return;
+ const x=LIBLAD.x*T,y0=(LIBLAD.y+2)*T;
+ g.fillStyle='#0b0e16';g.fillRect(x,y0,2*T,2*T);
+ /* 差し込み状態で見た目が変わるので閉じた扉だけ毎回再生成 */
+ if(libEndDoorOpen())g.drawImage(libMdOpenCv(),x,y0);
+ else{LIB_MD_CLOSED=null;g.drawImage(libMdClosedCv(),x,y0)}
+}
 function libMdEvent(rx,ry){
- if(unlockedDoors['libmd_open'])return {text:'扉は開いている。',x:rx,y:ry,face:'none'};
- if(unlockedDoors['libmd_holes']){
-  const n=LIB_SP_KINDS.filter(k=>unlockedDoors['libmd_slot_'+k]).length;
-  return {text:'扉に、四つの四角い穴が空いている。',x:rx,y:ry,face:'none',queue:[{text:n?'……残り'+(4-n)+'つの穴に、何かを嵌め込めそうだ。':'……本が、ちょうど収まりそうな大きさだ。',face:'none'}]}}
- return {text:'扉は固く閉ざされていて、びくともしない。',x:rx,y:ry,face:'none',seLocked:true}}
-/* 本を装備して扉を調べると、穴に嵌め込む */
+ if(libMir||libLv!==0||!libMdVisible()||!((rx===LIBLAD.x||rx===LIBLAD.x+1)&&(ry===LIBLAD.y+2||ry===LIBLAD.y+3)))return null;
+ if(libEndDoorOpen())return {text:'扉は開いている。',x:rx,y:ry,face:'none'};
+ const n=LIB_SP_KINDS.filter(k=>unlockedDoors['libmd_slot_'+k]).length;
+ return {text:'扉に、四冊の本を差し込めそうな穴がある。',x:rx,y:ry,face:'none',queue:[
+  {text:n?'……あと'+(4-n)+'冊、ここに差し込めそうね。':'……拾った本が、ちょうど収まりそう。',face:'1'}
+ ]};
+}
+/* 本を装備して、元の世界1階・ハシゴ真下の扉を調べると差し込む */
 function libMdInsert(fx,fy){
- if(!(cur==='library'&&libMir&&libLv===0&&unlockedDoors['libmd_holes']&&!unlockedDoors['libmd_open']&&fx===LIB_W-1&&(fy===12||fy===13)))return false;
+ if(!(cur==='library'&&!libMir&&libLv===0&&libMdVisible()&&!libEndDoorOpen()&&(fx===LIBLAD.x||fx===LIBLAD.x+1)&&(fy===LIBLAD.y+2||fy===LIBLAD.y+3)))return false;
  const k=LIB_SP_KINDS.find(q=>LIB_BOOKS[q].name===equippedItem);
  if(!k||unlockedDoors['libmd_slot_'+k])return false;
  const B=LIB_BOOKS[k],i=inventory.indexOf(B.name);if(i>=0)inventory.splice(i,1);
- equippedItem=null;unlockedDoors['libmd_slot_'+k]=true;
+ equippedItem=null;unlockedDoors['libmd_slot_'+k]=true;unlockedDoors['libmd_holes']=true;LIB_MD_CLOSED=null;
  const done=LIB_SP_KINDS.every(q=>unlockedDoors['libmd_slot_'+q]);
  tone('square',300,420,.08,.05);noiseSE(.05,.05,1800);
  const q=[{text:'……ぴたりと収まった。',face:'none'}];
- if(done)q.push({text:'ガコン……と重い音が響き、扉がゆっくりと開いていく。',face:'none',onStart:()=>{
-  unlockedDoors['libmd_open']=true;seOpen();noiseSE(1.4,.07,300);tone('sawtooth',70,45,1.4,.06)}});
- dlg={text:'「'+libBookTxt(k)+'」を穴に嵌め込んだ。',t0:performance.now(),face:'none',queue:q};
- return true}
-/* ダイアログの鏡文字（⟦…⟧ の中だけ左右反転して描く） */
+ if(done)q.push({text:'ガコン……と重い音が響き、\n扉がゆっくりと開いていく。',face:'none',onStart:()=>{
+  unlockedDoors['libmd_open']=true;LIB_MD_OPEN=null;LIB_MD_CLOSED=null;seOpen();noiseSE(1.4,.07,300);tone('sawtooth',70,45,1.4,.06)}});
+ dlg={text:'「'+libBookTxt(k)+'」を穴に差し込んだ。',t0:performance.now(),face:'none',queue:q};
+ return true;
+}
+/* ダイアログ特殊文字：⟦…⟧ は鏡文字、\uE000…\uE001 は文字上に傍点 */
 function libMirText(line,x,y){
- if(line.indexOf('\u27e6')<0&&line.indexOf('\u27e7')<0){g.fillText(line,x,y);return}
- let cx=x,mir=false;
- for(const p of line.split(/([\u27e6\u27e7])/)){
-  if(p==='\u27e6'){mir=true;continue}if(p==='\u27e7'){mir=false;continue}if(!p)continue;
-  const w=g.measureText(p).width;
-  if(mir){g.save();g.translate(cx+w,y);g.scale(-1,1);g.fillText(p,0,0);g.restore()}else g.fillText(p,cx,y);
+ const BS='\uE000',BE='\uE001';
+ if(line.indexOf('\u27e6')<0&&line.indexOf('\u27e7')<0&&line.indexOf(BS)<0&&line.indexOf(BE)<0){g.fillText(line,x,y);return}
+ let cx=x,mir=false,bouten=false;
+ for(const ch of line){
+  if(ch==='\u27e6'){mir=true;continue}if(ch==='\u27e7'){mir=false;continue}
+  if(ch===BS){bouten=true;continue}if(ch===BE){bouten=false;continue}
+  const w=g.measureText(ch).width;
+  if(mir){g.save();g.translate(cx+w,y);g.scale(-1,1);g.fillText(ch,0,0);g.restore()}else g.fillText(ch,cx,y);
+  if(bouten&&ch.trim()){
+   const pa=g.globalAlpha,oldFill=g.fillStyle;
+   g.globalAlpha=pa;g.fillStyle=oldFill;
+   g.beginPath();g.arc(Math.round(cx+w/2),y-49,3.2,0,Math.PI*2);g.fill();
+  }
   cx+=w}}
 /* アイテム欄の表示（「鏡の世界よ」だけ鏡文字） */
 function libItemLabel(li,item){
@@ -6169,9 +6245,16 @@ function libraryBuildLoft(){
  R(P.w3,vx,vy,vw,4);R(P.w4,vx,vy,vw,1);R(P.w3,vx,vy+vh-20,vw,4);R(P.w4,vx,vy+vh-20,vw,1);
  R(P.w1,vx,vy,6,vh);R(P.w3,vx,vy,2,vh);R(P.w1,vx+vw-6,vy,6,vh);R(P.w3,vx+vw-6,vy,2,vh);
 studyDrawItems(c,LIB_LOFT);libDrawHatch(c);
- /* 三階へ上る梯子（横に2本）。天井の口から差す薄明かりつき */
- R('rgba(255,235,170,.10)',LIBLAD2.x*T,(LIBLAD2.y-1)*T,LIBLAD2.w*T,T*2);
- for(let i=0;i<LIBLAD2.w;i++)studyLadderSpr(c,(LIBLAD2.x+i)*T,LIBLAD2.y*T);
+ /* 三階へ上る梯子（横に2本）。上方向へ長く伸ばし、先端ほど半透明にする */
+ R('rgba(255,235,170,.07)',LIBLAD2.x*T,(LIBLAD2.y-4)*T,LIBLAD2.w*T,T*5);
+ const ladAlpha=[1,.82,.60,.40];
+ for(let up=0;up<ladAlpha.length;up++){
+  c.save();c.globalAlpha=ladAlpha[up];
+  for(let i=0;i<LIBLAD2.w;i++)studyLadderSpr(c,(LIBLAD2.x+i)*T,(LIBLAD2.y-up)*T);
+  c.restore();
+ }
+ /* 最上部は天井の向こうへ消えていくように薄い光を重ねる */
+ c.save();c.globalAlpha=.28;R('rgba(235,225,190,.34)',LIBLAD2.x*T,(LIBLAD2.y-4)*T,LIBLAD2.w*T,T);c.restore();
  return cv2}
 function libraryBuildTop(){
  kitMkTex();
@@ -6220,15 +6303,44 @@ function drawLibCatRun(t){
 function libraryEvent(rx,ry){
  if(LIB_FALL)return {silent:true};
  const fx=libMir?LIB_W-1-rx:rx,fy=ry;
- if(libMir){
+ if(!libMir){
   {const bk=libBookEvent(fx,fy,rx,ry);if(bk)return bk}
-  if(libLv===0&&rx===LIB_W-1&&(fy===12||fy===13))return libMdEvent(rx,ry);
-  /* 通常の本棚は調べられない。特殊本棚は libraryEventRaw 側で個別処理する。 */
+  if(libLv===0&&(rx===LIBLAD.x||rx===LIBLAD.x+1)&&(fy===LIBLAD.y+2||fy===LIBLAD.y+3)){const md=libMdEvent(rx,ry);if(md)return md}
+ }else{
+  /* 鏡世界では本棚を倒すだけ。本を拾う処理は元の世界に戻ってから行う。 */
  }
  const r=libraryEventRaw(fx,fy);
  if(r&&libMir&&r.x!==undefined)r.x=rx;
  return r}
 function libraryEventRaw(fx,fy){
+/* 図書館1階中央の閲覧机：残された書き置き。鏡世界では表示しない。 */
+if(!libMir&&libLv===0&&fx>=17&&fx<=18&&fy===12)return {text:'「ダメだった」',x:fx,y:fy,face:'none',queue:[
+ {text:'「ハッキリと言おう、\n私達は見誤った」',face:'none'},
+ {text:'「ありとあらゆる知識を活用して、\nこの謎を解き明かそうとした……が」',face:'none'},
+ {text:'「我々はもうおしまいだ」',face:'none'},
+ {text:'「時は止まった、\nがそれ以上でもそれ以下でもない」',face:'none'},
+ {text:'「我々はもう動けない」',face:'none'},
+ {text:'「我々は一生……\nこの時間の流れが止まる世界に\n漂うだけだ」',face:'none'},
+ {text:'「もう何人かは、絶望して\n\uE000そうなった\uE001」',face:'none'},
+ {text:'「神よ、我々を救い給え」',face:'none'}
+]};
+/* 図書館2階の閲覧机：階層と時間の記録（元の世界のみ）。 */
+if(!libMir&&libLv===1&&fx>=15&&fx<=16&&fy===19)return {text:'「時間の流れについて」',x:fx,y:fy,face:'none',queue:[
+ {text:'「この館は階層によって\n時間の流れが大きく異なる」',face:'none'},
+ {text:'「5階は満月、4階は半月、3階は十三夜、\n2階は有明月、1階は新月」',face:'none'},
+ {text:'「月が没する事は無い、\n永遠に夜が続く」',face:'none'},
+ {text:'「だがそれでも植物が枯れる事はないし、\n何処からか電気が湧いてくる」',face:'none'},
+ {text:'「この古臭い館も改修が続き\n天文台やボイラー室、電気室なんかの\nハイカラな物を建てて迷宮みたいになったが……\nまさか本当に迷宮になるとは思わなかったな」',face:'none'},
+ {text:'「とにかく、階層によって\n時間の流れはまったく異なるせいで\n天気が違う階があったりする」',face:'none'},
+ {text:'「もはや我々に逃れる術など\nないのかもしれない」',face:'none'}
+]};
+/* 図書館3階の閲覧机：時計の秒針を取り外した記録（元の世界のみ）。 */
+if(!libMir&&libLv===2&&fx>=12&&fx<=13&&fy===5)return {text:'「全ての時計の秒針を外した」',x:fx,y:fy,face:'none',queue:[
+ {text:'「時計塔も天文台も中庭も、\n今や時計としては機能しないに等しい」',face:'none'},
+ {text:'「時は止まった」',face:'none'},
+ {text:'「これで全て元通りになるはずだった」',face:'none'},
+ {text:'「だったんだ」',face:'none'}
+]};
 for(const k of LIB_SP_KINDS){if(!unlockedDoors['libfall_'+k])continue;const pu=LIB_SP_FIXED[k];
  if(pu[0]===libLv&&fy===pu[2]+2&&(fx===pu[1]||fx===pu[1]+1)){
   if(libMir)return {text:'「バラバラだ」',x:fx,y:fy,face:'none'};
@@ -6248,14 +6360,15 @@ if(libLv===2&&fy>=2&&fy<=3){
  if(mv&&((fx>=15&&fx<=16)||(fx>=21&&fx<=22)))return {text:'空っぽの本棚。',x:fx,y:fy,face:'1',queue:[{text:'本は一冊も残っていない。',face:'1'}]};
 }
 if(libLv===1&&libStepHigh()&&!unlockedDoors['lib_cat_fled']&&fx>=LIB_CAT.x&&fx<LIB_CAT.x+LIB_CAT.w&&(fy===LIB_CAT.y||fy===LIB_CAT.y+1))return {silent:true,x:fx,y:fy,face:'none',then:libCatFlee};
-if(libLv===1&&fx===22&&fy===19&&(LIB_STEP.x!==LIB_STEP_DEF.x||LIB_STEP.y!==LIB_STEP_DEF.y))return {text:'小さな地球儀。',x:fx,y:fy,face:'1',queue:[{text:'……やっぱり、見たことのない海岸線ね',face:'1'},{text:'地球儀をくるりと回すと、\n階段椅子が元の場所へ滑っていった。',face:'none'}],then:libStepReset};
 if(libLv===1&&!unlockedDoors['lib_cat_fled']&&fx>=LIB_CAT.x&&fx<LIB_CAT.x+LIB_CAT.w&&(fy===LIB_CAT.y||fy===LIB_CAT.y+1))return {text:'「やっぱり首輪に鍵がある」',x:fx,y:fy,face:'1',queue:[{text:'「梯子を登る時に見かけた椅子が\nあったら手が届きそうね」',face:'1'}]};
-if(libLv===2&&LIBFENCE2.some(f=>f.x===fx&&f.y===fy))return {text:'梯子の穴を囲う木の柵。',x:fx,y:fy,face:'1',queue:[{text:'入口側だけ開いている。最上階でも用心深いのね',face:'1'}]};
- if(libLv===2&&fx>=LIBVOID2.x&&fx<LIBVOID2.x+LIBVOID2.w&&fy>=LIBVOID2.y&&fy<LIBVOID2.y+LIBVOID2.h)return {text:'手すり越しに、二階と一階が遠く見下ろせる。',x:fx,y:fy,face:'1',queue:[{text:'……落ちたら、ただじゃ済まなそう',face:'1'}]};
- if(libLv===1&&LIBFENCE.some(f=>f.x===fx&&f.y===fy))return {text:'梯子の穴を囲う木の柵。',x:fx,y:fy,face:'1',queue:[{text:'落ちないように、入口側だけ開けてあるみたい',face:'1'}]};
-if(libLv===1&&fx>=LIBVOID.x&&fx<LIBVOID.x+LIBVOID.w&&fy>=LIBVOID.y&&fy<LIBVOID.y+LIBVOID.h)return {text:'手すり越しに、下の図書館が見渡せる。',x:fx,y:fy,face:'1',queue:[{text:'……こんなに沢山の本、誰が読むのかしら',face:'1'}]};
+
+
+
+
 for(const it of (libLv===2?LIB_TOP:libLv===1?LIB_LOFT:LIB_ITEMS))if(it.t&&fx>=it.x&&fx<it.x+it.w&&fy>=it.y&&fy<it.y+it.h){
  if(it.fall)continue;
+ /* 読書灯・地球儀・司書の机は装飾扱いで、図書館では調べられない。 */
+ if(it.k==='lamp'||it.k==='globe'||it.k==='desk')continue;
  /* 図書館の通常本棚は調べられない。色付きなどの特殊本棚だけ個別に調べられる。 */
  if((it.k==='oldshelf'||it.k==='sideshelf')&&!it.sp)continue;
  if(libMir&&it.sp&&!unlockedDoors['libsp_'+it.sp])continue;
@@ -7549,7 +7662,7 @@ function getEventObj(){
  if(cur==='a'&&v===3&&!unlockedDoors['a']) {
   return {text:'「……？」', face:'5', queue:[{text:'「鍵がかかってる……内側からなのに？」',face:'5'}], seLocked:true};
  }
- if(v===32) return {text:'「止まったままの大きな古時計ね。\n針は'+CLOCK_ANS.h+'時'+CLOCK_ANS.m+'分を指している」', x:fx, y:fy, face:'1'};
+ if(v===32) return {text:'「大きな古時計ね。\n秒針だけ反対方向に動いている。\n短針と長針は'+CLOCK_ANS.h+'時'+CLOCK_ANS.m+'分を指している」', x:fx, y:fy, face:'1'};
  if(v===33) return {text:'大時計の針を動かす調整盤のようだ。', x:fx, y:fy, face:'none', choices:[
    {text:'時計の針を合わせる', action:()=>{dlg=null;openClockUI()}},
    {text:'汚いからヤダ', action:()=>{dlg=null}}]};
@@ -7581,26 +7694,7 @@ function getEventObj(){
    {text:'「さあ、早く時を止めよう」',face:'none'}
   ]
  };
- if(cur==='observatory'&&v===66) return {
-  text:'「時計塔の針」',
-  x:fx, y:fy, face:'none',
-  queue:[
-   {text:'「信じられない事が判明した」',face:'none'},
-   {text:'「この世界が狂う理由が分かったのだ」',face:'none'},
-   {text:'「いや、厳密には……」',face:'none'},
-   {text:'「いや、今は詳しい原理は置いておこう\nとにかく、これを戻せば我々の世界は元に戻るはずだ」',face:'none'},
-   {text:'「方法は、時計の秒針を取り外すのだ」',face:'none'},
-   {text:'「秒針は段々と反対方向に進もうとしている」',face:'none'},
-   {text:'「それこそ、今は前に進んでいるが……」',face:'none'},
-   {text:'「……やがて針は反対に進み、世界は完全に狂うだろう」',face:'none'},
-   {text:'「今でさえ、常軌を逸した現象が頻発しているのだ」',face:'none'},
-   {text:'「何故雨が降っているのに月が出ているんだ！？」',face:'none'},
-   {text:'「天候に詳しい知り合いが窓に向かって\n叫んでいたのを覚えている」',face:'none'},
-   {text:'「秒針を取り外せば、この異空間のような世界から\n我々は切り離され」',face:'none'},
-   {text:'「……元の屋敷に戻るはずだ」',face:'none'},
-   {text:'「確証はない」',face:'none'}
-  ]
- };
+
  if(v===64) return {kidbox:true};
  if(v===61) return {text:'「空っぽの本棚。\n本は一冊も残っていない」', x:fx, y:fy, face:'1'};
  if(v===62) return {text:'「小さな勉強机。\nノートは真っ白なままね」', x:fx, y:fy, face:'1'};
@@ -8330,8 +8424,8 @@ function loop(now){
    then:()=>seBell()
   };
  }
- /* 鏡図書館1階：4冊の本で開いた右端の扉へ入るとテストプレイ終了イベント */
- if(state==='play'&&!dlg&&!fade&&!movie&&!warp&&!stormEv&&cur==='library'&&libMir&&libLv===0&&unlockedDoors['libmd_end_enter']&&now>=hero.moving&&!unlockedDoors['libmd_end_evt']){
+ /* 元の世界・図書館1階：4冊すべて差し込んで開いたハシゴ真下の扉へ入るとテストプレイ終了イベント */
+ if(state==='play'&&!dlg&&!fade&&!movie&&!warp&&!stormEv&&cur==='library'&&!libMir&&libLv===0&&unlockedDoors['libmd_end_enter']&&now>=hero.moving&&!unlockedDoors['libmd_end_evt']){
   tcAuto=false;
   tcorrEnding=true;
   unlockedDoors['libmd_end_enter']=false;
@@ -8613,7 +8707,7 @@ const ITEM_DESC = {
   'リボルバー': 'いつも持ってる、相棒。\n今、弾はあまり持ってないから頻繁に使いたくない。',
   '自分の部屋の鍵': '自分の部屋の扉の鍵。\n戸棚の中に入っていた。',
   '鏡の間の鍵': '鏡の間の扉の鍵。\n大広間のステージの上に置かれていた。',
-  '空の紅茶カップ': '書斎のサイドテーブルにあった紅茶カップ。\n中身はとうに飲み干されて空っぽ。',
+  '空の紅茶カップ': '書斎の机にあった紅茶カップ。\n中身はとうに飲み干されて空っぽ。',
   '水入りの紅茶カップ': '天文台のウォーターサーバーで水を汲んだカップ。\n何か溶かせるものがあれば……。',
   '粉ミルク': 'キッチンの冷蔵庫に入っていた粉ミルク。\n水に溶かして使うもののようだ。',
   '猫': '図書館から逃げてきた灰色の猫。\nミルクをあげたら、すっかり懐いてくれた。\n選ぶと抱っこする。',
@@ -9035,6 +9129,8 @@ function loadSlot(slot) {
     if (str) {
         try {
             const data = JSON.parse(str);
+            const loadingFromTitle = state === 'title';
+            if (loadingFromTitle) stopTitleBGM(true);
             if (state === 'title' || state === 'dead' || !hero) {
                 init();
                 document.getElementById('title-screen').style.display = 'none';
