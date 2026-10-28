@@ -6112,7 +6112,17 @@ function libStepPlace(x,y){
  if(g1&&g1[y])g1[y][x]=1}
 function libStepRestore(o){
  const ok=o&&Number.isInteger(o.x)&&Number.isInteger(o.y)&&o.x>0&&o.x<LIB_W-1&&o.y>1&&o.y<LIB_H-1;
- libStepPlace(ok?o.x:LIB_STEP_DEF.x,ok?o.y:LIB_STEP_DEF.y)}
+ const x=ok?o.x:LIB_STEP_DEF.x,y=ok?o.y:LIB_STEP_DEF.y;
+ // 裏図書館の階段椅子は画面外へ退避している。座標は表の世界用に保存する。
+ if(libMir){
+  LIB_STEP_HOME.x=x;LIB_STEP_HOME.y=y;
+  LIB_STEP.x=LIB_STEP.fx=-50;LIB_STEP.y=LIB_STEP.fy=y;
+  LIB_STEP.t0=0;LIB_STEP.up=false;LIB_STEP.l0=LIB_STEP.l1=0;
+  return;
+ }
+ libStepPlace(x,y);
+ LIB_STEP_HOME.x=LIB_STEP.x;LIB_STEP_HOME.y=LIB_STEP.y;
+}
 /* 正面から押す：押した先が空いた床(0)なら1マスずらす。梯子・柵・吹き抜け・棚・他の家具の上へは動かない */
 function libStepPush(nx,ny,d){
  if(cur!=='library'||libLv!==1||nx!==LIB_STEP.x||ny!==LIB_STEP.y)return false;
@@ -6360,6 +6370,14 @@ if(libLv===2&&fy>=2&&fy<=3){
  if(mv&&((fx>=15&&fx<=16)||(fx>=21&&fx<=22)))return {text:'空っぽの本棚。',x:fx,y:fy,face:'1',queue:[{text:'本は一冊も残っていない。',face:'1'}]};
 }
 if(libLv===1&&libStepHigh()&&!unlockedDoors['lib_cat_fled']&&fx>=LIB_CAT.x&&fx<LIB_CAT.x+LIB_CAT.w&&(fy===LIB_CAT.y||fy===LIB_CAT.y+1))return {silent:true,x:fx,y:fy,face:'none',then:libCatFlee};
+/* 二階の小さな地球儀を回すと、押して移動させた階段椅子を初期位置に戻す。 */
+if(!libMir&&libLv===1&&fx===22&&fy===19&&
+   (LIB_STEP.x!==LIB_STEP_DEF.x||LIB_STEP.y!==LIB_STEP_DEF.y)){
+ return {text:'小さな地球儀。',x:fx,y:fy,face:'1',queue:[
+  {text:'……やっぱり、見たことのない海岸線ね',face:'1'},
+  {text:'地球儀をくるりと回すと、\n階段椅子が元の場所へ滑っていった。',face:'none'}
+ ],then:libStepReset};
+}
 if(libLv===1&&!unlockedDoors['lib_cat_fled']&&fx>=LIB_CAT.x&&fx<LIB_CAT.x+LIB_CAT.w&&(fy===LIB_CAT.y||fy===LIB_CAT.y+1))return {text:'「やっぱり首輪に鍵がある」',x:fx,y:fy,face:'1',queue:[{text:'「梯子を登る時に見かけた椅子が\nあったら手が届きそうね」',face:'1'}]};
 
 
@@ -9117,7 +9135,8 @@ function saveSlot(slot) {
         hero: {gx: saveGx, gy: saveGy, dir: hero.dir},
         seenB, inventory, unlockedDoors, equippedItem,
         studyLv: cur==='study'?studyLv:0, libLv: cur==='library'?libLv:0, libMir: cur==='library'&&libMir,
-        libStep: {x:LIB_STEP.x, y:LIB_STEP.y},
+        // 鏡の世界では椅子を画面外(-50)へ退避するので、表の世界での実座標を保存する。
+        libStep: libMir ? {x:LIB_STEP_HOME.x, y:LIB_STEP_HOME.y} : {x:LIB_STEP.x, y:LIB_STEP.y},
         libShelves: LIB_SPEC
     };
     localStorage.setItem('game_save_data_' + slot, JSON.stringify(data));
